@@ -1,0 +1,57 @@
+name: frontend
+
+on:
+  push:
+    branches: [main, master]
+    paths: ["frontend/**", ".github/workflows/frontend.yml"]
+  pull_request:
+    branches: [main, master]
+    paths: ["frontend/**"]
+
+jobs:
+  typecheck:
+    runs-on: ubuntu-latest
+    env:
+      NEXT_PUBLIC_SLATE_REPO_URL: https://github.com/tygartnexus/slate
+      NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: pk_test_Y2xlcmsuZXhhbXBsZSQ
+      NEXT_PUBLIC_SLATE_E2E_AUTH_BYPASS: unsafe-local-only
+      CLERK_SECRET_KEY: sk_test_dummy
+      SLATE_E2E_AUTH_BYPASS: unsafe-local-only
+      SLATE_E2E_API_FIXTURE: "true"
+      SLATE_API_URL: http://127.0.0.1:8000
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install
+        run: npm ci
+
+      - name: Dependency audit
+        run: npm audit --audit-level=high
+
+      - name: Content claim check
+        run: npm run check:content
+
+      - name: Unit tests
+        run: npm run test
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Build
+        run: npm run build
+
+      - name: Type check
+        run: npm run typecheck
+
+      - name: Install Playwright browser
+        run: npx playwright install --with-deps chromium
+
+      - name: End-to-end tests
+        run: npm run test:e2e

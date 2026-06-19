@@ -1,0 +1,93 @@
+{
+  "status": "FAIL",
+  "shot_id": "village_walk_001",
+  "slate_version": "0.1.0",
+  "started_at": "2026-05-20T00:00:00Z",
+  "finished_at": "2026-05-20T00:00:05Z",
+  "duration_seconds": 5.0,
+  "providers_consulted": ["gemma"],
+  "frames_analyzed": ["frame_0000.png", "frame_0005.png", "frame_0009.png"],
+  "failures": [
+    {
+      "signal": "character_orientation",
+      "value": "lying_horizontal",
+      "frame": "frame_0005.png",
+      "provider": "gemma",
+      "model": "gemma4:latest",
+      "description": "Character is horizontal instead of upright."
+    }
+  ],
+  "frame_analyses": [
+    {
+      "frame": "frame_0005.png",
+      "provider": "gemma",
+      "model": "gemma4:latest",
+      "raw_signals": {
+        "character_visible": true,
+        "character_orientation": "lying_horizontal"
+      },
+      "quality_scores": {
+        "lighting_quality": 4.0
+      },
+      "response_quality": {
+        "mode": "evidence_based",
+        "facts": ["The provider analyzed frame_0005.png."],
+        "assumptions": ["The manifest describes the intended shot accurately."],
+        "unknowns": ["Unsampled frames were not inspected."],
+        "confidence_score": 0.74,
+        "evidence": ["frame_0005.png provider response"],
+        "risks": ["The provider may misread stylized poses."],
+        "counterarguments": ["A horizontal pose could be intentional staging."],
+        "recommendation": "Review the frame before publishing.",
+        "tradeoffs": ["More samples improve confidence but increase runtime."],
+        "what_would_change_recommendation": [
+          "Human review confirms the horizontal pose is intentional."
+        ]
+      },
+      "error": null
+    }
+  ],
+  "quality_scores_aggregated": {
+    "lighting_quality": 4.0
+  },
+  "response_quality": {
+    "mode": "evidence_based",
+    "facts": [
+      "Slate status is FAIL.",
+      "Analyzed 3 sampled frames.",
+      "Consulted provider(s): gemma.",
+      "Recorded 1 hard-fail finding."
+    ],
+    "assumptions": [
+      "The manifest describes the intended shot accurately.",
+      "The sampled frames are representative of the render segment being judged."
+    ],
+    "unknowns": [
+      "Unsampled frames were not inspected by this verdict.",
+      "Ground truth beyond the manifest and sampled pixels was not independently verified."
+    ],
+    "confidence_score": 0.82,
+    "evidence": [
+      "frames_analyzed=['frame_0000.png', 'frame_0005.png', 'frame_0009.png']",
+      "providers_consulted=['gemma']",
+      "failure_signals=['character_orientation']"
+    ],
+    "risks": [
+      "A PASS can miss issues outside sampled frames or outside the configured signal taxonomy.",
+      "Provider judgments can be wrong or inconsistent on ambiguous visual evidence."
+    ],
+    "counterarguments": [
+      "Multiple providers or sampled frames can increase confidence when their evidence agrees.",
+      "A hard-fail signal is still useful even when the exact creative severity needs human review."
+    ],
+    "recommendation": "Do not publish until the listed hard-fail findings are reviewed and resolved.",
+    "tradeoffs": [
+      "More frames and providers improve evidence but increase latency and cost.",
+      "Strict failure handling may block borderline shots that a human would accept."
+    ],
+    "what_would_change_recommendation": [
+      "A rerun with additional frames or providers that changes the failure set.",
+      "Human review showing the flagged issue is intentional or visually acceptable."
+    ]
+  }
+}

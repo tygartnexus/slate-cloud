@@ -1,0 +1,34 @@
+# Python
+__pycache__/
+*.py[cod]
+build/
+dist/
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.coverage
+.mypy_cache/
+.ruff_cache/
+
+# Node
+node_modules/
+.next/
+out/
+*.tsbuildinfo
+
+# Env / secrets
+.env
+.env.local
+.env.production
+*.pem
+slate_pro_issuer_*
+
+# IDE
+.vscode/
+.idea/
+*.swp
+.DS_Store
+
+# Local DB
+postgres-data/
