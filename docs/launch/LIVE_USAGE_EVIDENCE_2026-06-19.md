@@ -7,21 +7,21 @@ Verdict: public repo and CI gates pass; production live-usage gates remain block
 
 ### Fresh public repos
 
-| Repo | URL | Public head | Branches |
+| Repo | URL | Release evidence | Branches |
 |---|---|---:|---|
 | Slate | https://github.com/tygartnexus/slate | `b86e13e` | `main` only |
 | SlatePro | https://github.com/tygartnexus/slate-pro | `43b00dd` | `main` only |
-| SlateCloud | https://github.com/tygartnexus/slate-cloud | `0c5b209` | `main` only |
+| SlateCloud | https://github.com/tygartnexus/slate-cloud | executable release `0c5b209`; later evidence-only commits may advance `main` | `main` only |
 
 Evidence:
 
 - Fresh public clone check passed for all three repos after the evidence PR merge.
 - High-confidence public-clone secret scan passed.
 - Each public clone showed only `main`.
-- Public heads at final verification:
+- Public heads observed during final verification:
   - Slate: `b86e13e`
   - SlatePro: `43b00dd`
-  - SlateCloud: `0c5b209`
+  - SlateCloud executable release: `0c5b209`
 
 ### Public CI
 
@@ -35,8 +35,8 @@ Evidence:
 
 - Slate CI run `27834359818`: pass.
 - SlatePro CI run `27834578279`: pass.
-- SlateCloud final backend run `27835056534`: pass.
-- SlateCloud final frontend run `27835056519`: pass.
+- SlateCloud observed main backend run `27835056534`: pass.
+- SlateCloud observed main frontend run `27835056519`: pass.
 
 ### Branch protection
 
