@@ -72,6 +72,61 @@ def test_upload_current_slate_cli_fixture(ctx: Ctx) -> None:
     assert body["payload"]["response_quality"]["mode"] == "evidence_based"
 
 
+def test_upload_redacts_sensitive_keys_before_persisting(ctx: Ctx) -> None:
+    payload = {
+        **CORE_VERDICT,
+        "provider_response": {
+            "api_token": "provider-token-value",
+            "nested": {"Authorization": "Bearer provider-token-value"},
+            "public_note": "safe to keep",
+        },
+        "frame_analyses": [
+            {
+                "frame": "frame_0000.png",
+                "provider": "gemma",
+                "model": "gemma4:latest",
+                "raw_signals": {"model_text": "unredacted model transcript"},
+            }
+        ],
+        "panel": {
+            "per_persona": [
+                {
+                    "raw_response": "unredacted persona transcript",
+                    "summary": "safe summary",
+                }
+            ]
+        },
+        "frames": [{"private-key": "pem-like-value", "frame": "frame_0000.png"}],
+        "note": "sk_" + "test_" + "123456789012345678901234",
+    }
+
+    resp = ctx.client.post("/verdicts", json={"payload": payload})
+
+    assert resp.status_code == 201, resp.text
+    stored = resp.json()["payload"]
+    assert stored["provider_response"]["api_token"] == "[redacted]"
+    assert stored["provider_response"]["nested"]["Authorization"] == "[redacted]"
+    assert stored["provider_response"]["public_note"] == "safe to keep"
+    assert stored["frame_analyses"][0]["raw_signals"] == "[redacted]"
+    assert stored["panel"]["per_persona"][0]["raw_response"] == "[redacted]"
+    assert stored["panel"]["per_persona"][0]["summary"] == "safe summary"
+    assert stored["frames"][0]["private-key"] == "[redacted]"
+    assert stored["frames"][0]["frame"] == "frame_0000.png"
+    assert stored["note"] == "[redacted]"
+
+
+def test_upload_rejects_payload_over_configured_size(ctx: Ctx, monkeypatch) -> None:
+    from app.config import get_settings
+
+    monkeypatch.setenv("VERDICT_MAX_PAYLOAD_BYTES", "200")
+    get_settings.cache_clear()
+
+    resp = ctx.client.post("/verdicts", json={"payload": CORE_VERDICT})
+
+    assert resp.status_code == 413
+    assert "exceeds 200 bytes" in resp.text
+
+
 def test_upload_rejects_verdict_without_response_quality(ctx: Ctx) -> None:
     payload = dict(CORE_VERDICT)
     payload.pop("response_quality")

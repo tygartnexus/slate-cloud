@@ -30,9 +30,13 @@ push_one() {
   fi
 }
 
-push_one "/e/Slate"      "slate"
-push_one "/e/SlatePro"   "slate-pro"
-push_one "/e/SlateCloud" "slate-cloud"
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+SLATE_CLOUD_ROOT="$(cd -- "$SCRIPT_DIR/.." && pwd)"
+WORKSPACE_ROOT="$(cd -- "$SLATE_CLOUD_ROOT/.." && pwd)"
+
+push_one "$WORKSPACE_ROOT/Slate"      "slate"
+push_one "$WORKSPACE_ROOT/SlatePro"   "slate-pro"
+push_one "$SLATE_CLOUD_ROOT"          "slate-cloud"
 
 echo
 echo "Done. Three $VISIBILITY repos under $ORG:"

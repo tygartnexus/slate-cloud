@@ -16,12 +16,18 @@ node_modules/
 .next/
 out/
 *.tsbuildinfo
+frontend/test-results/
+frontend/playwright-report/
 
 # Env / secrets
-.env
-.env.local
-.env.production
+.env*
+!.env.example
+!**/.env.example
 *.pem
+*.key
+*.p12
+*.pfx
+*.crt
 slate_pro_issuer_*
 
 # IDE
@@ -32,3 +38,9 @@ slate_pro_issuer_*
 
 # Local DB
 postgres-data/
+
+# Local Slate artifacts
+*.verdict.json
+*.tar.gz
+*_evidence_bundle/
+slate_run_*/

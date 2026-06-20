@@ -53,7 +53,7 @@ Branch protection is enabled on `main` for all three repos.
 Command:
 
 ```powershell
-$env:Path = "E:\SlateCloud\.venv\Scripts;$env:Path"
+$env:Path = "<SlateCloud checkout>\.venv\Scripts;$env:Path"
 pwsh .\scripts\verify_local_release.ps1
 ```
 

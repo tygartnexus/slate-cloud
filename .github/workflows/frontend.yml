@@ -13,10 +13,7 @@ jobs:
     env:
       NEXT_PUBLIC_SLATE_REPO_URL: https://github.com/tygartnexus/slate
       NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: pk_test_Y2xlcmsuZXhhbXBsZSQ
-      NEXT_PUBLIC_SLATE_E2E_AUTH_BYPASS: unsafe-local-only
-      CLERK_SECRET_KEY: sk_test_dummy
-      SLATE_E2E_AUTH_BYPASS: unsafe-local-only
-      SLATE_E2E_API_FIXTURE: "true"
+      CLERK_SECRET_KEY: clerk_secret_key_placeholder
       SLATE_API_URL: http://127.0.0.1:8000
     defaults:
       run:

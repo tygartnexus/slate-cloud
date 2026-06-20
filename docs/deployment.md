@@ -21,13 +21,18 @@ Set these in Fly/Railway dashboard:
 APP_ENV                 # production
 DATABASE_URL            # Neon/Postgres connection string; SQLite is blocked in production
 CLERK_JWT_PUBLIC_KEY    # from Clerk dashboard -> API keys -> JWT public key
+CLERK_JWT_ISSUER        # expected issuer for your Clerk app
+CLERK_JWT_AUDIENCE      # expected audience for your backend/API
+CLERK_JWT_AUTHORIZED_PARTIES # comma-separated frontend client ids/origins you trust
+CORS_ALLOWED_ORIGINS    # comma-separated frontend origins allowed to call the API
+VERDICT_MAX_PAYLOAD_BYTES # max persisted verdict JSON size
 ```
 
 After deploying the backend, check:
 
 ```bash
-curl https://api.slate.ai/health
-curl https://api.slate.ai/ready
+curl https://your-backend.example.com/health
+curl https://your-backend.example.com/ready
 ```
 
 `/health` only proves the process is running. `/ready` verifies required env
@@ -39,7 +44,7 @@ Treat
 ## Production env vars (frontend, Vercel)
 
 ```
-SLATE_API_URL                       # https://api.slate.ai; server-only
+SLATE_API_URL                       # your backend base URL; server-only
 NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY   # Clerk publishable key
 CLERK_SECRET_KEY                    # Clerk server-side secret key
 NEXT_PUBLIC_SLATE_REPO_URL          # verified public Slate repo URL

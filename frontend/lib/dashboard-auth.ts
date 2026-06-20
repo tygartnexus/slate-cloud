@@ -8,6 +8,9 @@ export const E2E_AUTH_COOKIE = "slate_e2e_auth";
 
 export function isE2EAuthBypassConfigured(): boolean {
   return (
+    (process.env.NODE_ENV !== "production" ||
+      (process.env.PLAYWRIGHT_TEST === "1" &&
+        process.env.SLATE_ALLOW_LOCAL_E2E_BUILD === "true")) &&
     process.env.SLATE_E2E_AUTH_BYPASS === E2E_BYPASS_VALUE &&
     process.env.NEXT_PUBLIC_SLATE_E2E_AUTH_BYPASS === E2E_BYPASS_VALUE &&
     process.env.SLATE_E2E_API_FIXTURE === "true" &&
@@ -31,7 +34,11 @@ export async function getDashboardAuth(): Promise<{
     headerStore.get(E2E_AUTH_HEADER) === process.env.SLATE_E2E_AUTH_SECRET &&
     cookieStore.get(E2E_AUTH_COOKIE)?.value === "1"
   ) {
-    return { userId: "e2e-user", token: "e2e-token", isBypass: true };
+    return {
+      userId: "e2e-user",
+      token: process.env.SLATE_E2E_AUTH_SECRET,
+      isBypass: true,
+    };
   }
 
   const authResult = await auth();

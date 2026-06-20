@@ -10,6 +10,9 @@ const E2E_CLERK_PUBLISHABLE_KEY = "pk_test_Y2xlcmsuZXhhbXBsZSQ";
 function isE2EFixtureRequest(req: NextRequest): boolean {
   const secret = process.env.SLATE_E2E_AUTH_SECRET;
   return (
+    (process.env.NODE_ENV !== "production" ||
+      (process.env.PLAYWRIGHT_TEST === "1" &&
+        process.env.SLATE_ALLOW_LOCAL_E2E_BUILD === "true")) &&
     isLocalhost(req.nextUrl.hostname) &&
     process.env.SLATE_E2E_AUTH_BYPASS === E2E_AUTH_BYPASS_VALUE &&
     process.env.NEXT_PUBLIC_SLATE_E2E_AUTH_BYPASS === E2E_AUTH_BYPASS_VALUE &&

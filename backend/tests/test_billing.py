@@ -11,8 +11,8 @@ def test_checkout_is_disabled(ctx: Ctx) -> None:
         json={
             "tier": "pro",
             "cadence": "monthly",
-            "success_url": "https://app.slate.ai/dashboard",
-            "cancel_url": "https://slate.ai",
+            "success_url": "https://frontend.example.invalid/dashboard",
+            "cancel_url": "https://frontend.example.invalid",
         },
     )
 

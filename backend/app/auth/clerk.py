@@ -28,17 +28,36 @@ def _verify_clerk_jwt(token: str) -> dict[str, Any]:
             status.HTTP_500_INTERNAL_SERVER_ERROR,
             "CLERK_JWT_PUBLIC_KEY not configured",
         )
+    decode_kwargs: dict[str, Any] = {
+        "algorithms": ["RS256"],
+        "options": {
+            "verify_aud": bool(settings.CLERK_JWT_AUDIENCE),
+            "require": ["exp", "iat", "sub"],
+        },
+    }
+    if settings.CLERK_JWT_AUDIENCE:
+        decode_kwargs["audience"] = settings.CLERK_JWT_AUDIENCE
+    if settings.CLERK_JWT_ISSUER:
+        decode_kwargs["issuer"] = settings.CLERK_JWT_ISSUER
     try:
-        return pyjwt.decode(
+        claims = pyjwt.decode(
             token,
             settings.CLERK_JWT_PUBLIC_KEY,
-            algorithms=["RS256"],
-            options={"verify_aud": False},
+            **decode_kwargs,
         )
     except pyjwt.InvalidTokenError as exc:
         raise HTTPException(
             status.HTTP_401_UNAUTHORIZED, f"invalid clerk jwt: {exc}"
         ) from exc
+    authorized_parties = settings.clerk_authorized_parties
+    if authorized_parties:
+        azp = str(claims.get("azp", ""))
+        if azp not in authorized_parties:
+            raise HTTPException(
+                status.HTTP_401_UNAUTHORIZED,
+                "invalid clerk jwt: unauthorized authorized party",
+            )
+    return claims
 
 
 def current_account(
