@@ -1,7 +1,7 @@
 param(
-  [string]$SlateCloudRoot = "E:\SlateCloud",
-  [string]$SlateRoot = "E:\Slate",
-  [string]$SlateProRoot = "E:\SlatePro",
+  [string]$SlateCloudRoot = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot "..")).Path,
+  [string]$SlateRoot = (Join-Path (Split-Path -Parent (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot "..")).Path) "Slate"),
+  [string]$SlateProRoot = (Join-Path (Split-Path -Parent (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot "..")).Path) "SlatePro"),
   [switch]$SkipSlowChecks,
   [switch]$SkipFormatCheck
 )
@@ -65,6 +65,7 @@ function Invoke-SecretScan($paths) {
     "--glob", "!**/.ruff_cache/**",
     "--glob", "!**/dist/**",
     "--glob", "!**/build/**",
+    "-l",
     $secretPattern
   ) + $paths
 
@@ -86,7 +87,7 @@ $slatePro = Assert-Repo $SlateProRoot
 Invoke-SecretScan @($slateCloud, $slate, $slatePro)
 
 if ($SkipFormatCheck) {
-  Step "E:\SlateCloud\backend :: python -m black --check ."
+  Step "$slateCloud\backend :: python -m black --check ."
   Write-Host "SKIPPED: local Python/Black is blocked on this workstation. CI must run this gate." -ForegroundColor Yellow
 } else {
   Invoke-Checked (Join-Path $slateCloud "backend") "python -m black --check ."

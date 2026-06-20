@@ -14,8 +14,14 @@ interface VerdictDetail extends VerdictSummary {
 
 type ApiParser<T> = (value: unknown) => T;
 
-const E2E_FIXTURE_ENABLED = process.env.SLATE_E2E_API_FIXTURE === "true";
-const E2E_TOKEN = "e2e-token";
+const E2E_TOKEN = process.env.SLATE_E2E_AUTH_SECRET ?? "";
+const E2E_LOCAL_BUILD_ALLOWED =
+  process.env.PLAYWRIGHT_TEST === "1" &&
+  process.env.SLATE_ALLOW_LOCAL_E2E_BUILD === "true";
+const E2E_FIXTURE_ENABLED =
+  (process.env.NODE_ENV !== "production" || E2E_LOCAL_BUILD_ALLOWED) &&
+  process.env.SLATE_E2E_API_FIXTURE === "true" &&
+  E2E_TOKEN.length >= 32;
 const E2E_VERDICT: VerdictDetail = {
   id: "e2e-verdict-1",
   shot_id: "village_walk_001",

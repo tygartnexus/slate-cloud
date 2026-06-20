@@ -73,6 +73,31 @@ def test_ready_endpoint_blocks_when_database_url_missing(ctx: Ctx, monkeypatch) 
     assert checks["database"]["detail"] == "database URL missing"
 
 
+def test_ready_endpoint_blocks_production_without_clerk_claim_checks(
+    ctx: Ctx, monkeypatch
+) -> None:
+    monkeypatch.setenv("APP_ENV", "production")
+    monkeypatch.setenv("CLERK_JWT_ISSUER", "")
+    monkeypatch.setenv("CLERK_JWT_AUDIENCE", "")
+    monkeypatch.setenv("CLERK_JWT_AUTHORIZED_PARTIES", "")
+
+    from app.config import get_settings
+
+    get_settings.cache_clear()
+    try:
+        resp = ctx.client.get("/ready")
+    finally:
+        get_settings.cache_clear()
+
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    checks = _checks_by_name(body)
+    assert body["status"] == "blocked"
+    assert checks["CLERK_JWT_ISSUER"]["status"] == "fail"
+    assert checks["CLERK_JWT_AUDIENCE"]["status"] == "fail"
+    assert checks["CLERK_JWT_AUTHORIZED_PARTIES"]["status"] == "fail"
+
+
 def test_ready_endpoint_blocks_sqlite_in_production(ctx: Ctx, monkeypatch) -> None:
     monkeypatch.setenv("APP_ENV", "production")
     monkeypatch.setenv("DATABASE_URL", "sqlite:///./should-not-be-production.db")

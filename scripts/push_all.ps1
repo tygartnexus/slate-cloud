@@ -30,9 +30,12 @@ function Push-One($path, $name) {
   }
 }
 
-Push-One "E:\Slate"      "slate"
-Push-One "E:\SlatePro"   "slate-pro"
-Push-One "E:\SlateCloud" "slate-cloud"
+$slateCloudRoot = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot "..")).Path
+$workspaceRoot = Split-Path -Parent $slateCloudRoot
+
+Push-One (Join-Path $workspaceRoot "Slate")      "slate"
+Push-One (Join-Path $workspaceRoot "SlatePro")   "slate-pro"
+Push-One $slateCloudRoot                         "slate-cloud"
 
 Write-Host ""
 Write-Host "Done. Three $visibility repos under $org."

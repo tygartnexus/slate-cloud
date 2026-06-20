@@ -33,6 +33,11 @@ or license activation requirement.
 
 Slate Cloud stores uploaded **verdict payload JSON** — not frame bytes and not API keys. That payload can still contain shot IDs, model observations, persona reports, manifest-derived fields, and other user-provided metadata that the customer chose to upload. Provider choice controls frame flow: local Ollama keeps sampled frames on the customer's hardware, while NVIDIA or Anthropic lanes send sampled frames to those providers through the customer's own account.
 
+Before hosting Slate Cloud for other users, read
+[docs/privacy-and-security.md](docs/privacy-and-security.md). The deployer is
+responsible for their own privacy notice, retention policy, Clerk configuration,
+database access controls, and incident process.
+
 ## Local dev
 
 ### Prereqs
@@ -44,10 +49,12 @@ Slate Cloud stores uploaded **verdict payload JSON** — not frame bytes and not
 ### Backend
 
 ```bash
+cp .env.example .env  # set POSTGRES_PASSWORD for local Docker only
+docker compose up -d postgres
+
 cd backend
 python -m venv .venv && . .venv/Scripts/activate   # Windows
 pip install -e ".[dev]"
-docker compose up -d postgres
 cp .env.example .env  # set APP_ENV, DATABASE_URL, and CLERK_JWT_PUBLIC_KEY
 alembic upgrade head
 uvicorn app.main:app --reload --port 8000

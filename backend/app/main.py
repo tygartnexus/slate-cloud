@@ -10,11 +10,14 @@ from __future__ import annotations
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.config import get_settings
 from app.routes.account import router as account_router
 from app.routes.billing import router as billing_router
 from app.routes.readiness import router as readiness_router
 from app.routes.verdicts import router as verdicts_router
 from app.routes.webhooks import router as webhooks_router
+
+settings = get_settings()
 
 app = FastAPI(
     title="Slate Cloud API",
@@ -24,10 +27,7 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:3000",
-        "https://app.slate.ai",
-    ],
+    allow_origins=settings.cors_allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

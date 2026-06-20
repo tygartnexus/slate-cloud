@@ -30,6 +30,11 @@ class ReadinessResponse(BaseModel):
 
 
 REQUIRED_ENV_VARS = ("CLERK_JWT_PUBLIC_KEY",)
+PRODUCTION_REQUIRED_ENV_VARS = (
+    "CLERK_JWT_ISSUER",
+    "CLERK_JWT_AUDIENCE",
+    "CLERK_JWT_AUTHORIZED_PARTIES",
+)
 EXPECTED_ALEMBIC_REVISION = "002_free_open_source_schema"
 
 
@@ -49,6 +54,17 @@ def readiness() -> ReadinessResponse:
                 fail_detail="missing",
             )
         )
+    if settings.APP_ENV == "production":
+        for name in PRODUCTION_REQUIRED_ENV_VARS:
+            value = getattr(settings, name)
+            checks.append(
+                _check(
+                    name=name,
+                    ok=bool(value),
+                    pass_detail="configured",
+                    fail_detail="missing for production JWT claim validation",
+                )
+            )
 
     checks.append(_database_config_check(settings))
     checks.append(_database_safety_check(settings))
