@@ -34,7 +34,7 @@ const clerkGuard = clerkMiddleware(async (auth, req) => {
   await auth.protect();
 });
 
-export default function middleware(req: NextRequest, event: NextFetchEvent) {
+export default function proxy(req: NextRequest, event: NextFetchEvent) {
   if (isProtectedRoute(req) && isE2EFixtureRequest(req)) {
     return NextResponse.next();
   }
