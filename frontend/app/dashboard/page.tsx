@@ -1,18 +1,25 @@
 import Link from "next/link";
-import { listVerdicts } from "@/lib/api";
+import { getAccount, listVerdicts, VERDICT_PAGE_SIZE } from "@/lib/api";
 import { VerdictCard } from "@/components/verdict-card";
 import { getDashboardAuth } from "@/lib/dashboard-auth";
 
 export default async function DashboardPage() {
   const { token } = await getDashboardAuth();
-  const verdicts = token ? await listVerdicts(token) : [];
+  const [verdicts, account] = token
+    ? await Promise.all([listVerdicts(token), getAccount(token)])
+    : [[], null];
+
+  // listVerdicts returns one page. The account total is the real count, so the
+  // header does not silently plateau at the page size.
+  const total = account?.verdict_count ?? verdicts.length;
+  const hasMore = total > verdicts.length;
 
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-semibold">Verdicts</h1>
         <div className="text-sm text-zinc-500">
-          {verdicts.length} {verdicts.length === 1 ? "verdict" : "verdicts"} uploaded
+          {total} {total === 1 ? "verdict" : "verdicts"} uploaded
         </div>
       </div>
 
@@ -30,13 +37,20 @@ export default async function DashboardPage() {
           </p>
         </div>
       ) : (
-        <div className="grid gap-3">
-          {verdicts.map((v) => (
-            <Link key={v.id} href={`/dashboard/verdicts/${v.id}`}>
-              <VerdictCard verdict={v} />
-            </Link>
-          ))}
-        </div>
+        <>
+          <div className="grid gap-3">
+            {verdicts.map((v) => (
+              <Link key={v.id} href={`/dashboard/verdicts/${v.id}`}>
+                <VerdictCard verdict={v} />
+              </Link>
+            ))}
+          </div>
+          {hasMore && (
+            <p className="mt-4 text-center text-xs text-zinc-500">
+              Showing the {VERDICT_PAGE_SIZE} most recent of {total} verdicts.
+            </p>
+          )}
+        </>
       )}
     </div>
   );

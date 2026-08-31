@@ -1,5 +1,8 @@
 const API_URL = process.env.SLATE_API_URL ?? "http://localhost:8000";
 
+// Mirrors the backend default page size (backend/app/routes/verdicts.py).
+export const VERDICT_PAGE_SIZE = 50;
+
 interface VerdictSummary {
   id: string;
   shot_id: string;
@@ -114,7 +117,13 @@ export async function listVerdicts(token: string): Promise<VerdictSummary[]> {
     const { payload: _payload, ...summary } = E2E_VERDICT;
     return [summary];
   }
-  return (await authedFetch(token, "/verdicts", parseVerdictList)) ?? [];
+  return (
+    (await authedFetch(
+      token,
+      `/verdicts?limit=${VERDICT_PAGE_SIZE}&offset=0`,
+      parseVerdictList,
+    )) ?? []
+  );
 }
 
 export async function getVerdict(
