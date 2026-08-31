@@ -38,7 +38,7 @@ def test_ready_endpoint_blocks_when_required_env_missing(ctx: Ctx, monkeypatch) 
     finally:
         get_settings.cache_clear()
 
-    assert resp.status_code == 200, resp.text
+    assert resp.status_code == 503, resp.text
     body = resp.json()
     assert body["status"] == "blocked"
     assert _checks_by_name(body)["CLERK_JWT_PUBLIC_KEY"] == {
@@ -65,7 +65,7 @@ def test_ready_endpoint_blocks_when_database_url_missing(ctx: Ctx, monkeypatch) 
         get_engine.cache_clear()
         get_sessionmaker.cache_clear()
 
-    assert resp.status_code == 200, resp.text
+    assert resp.status_code == 503, resp.text
     body = resp.json()
     checks = _checks_by_name(body)
     assert body["status"] == "blocked"
@@ -89,7 +89,7 @@ def test_ready_endpoint_blocks_production_without_clerk_claim_checks(
     finally:
         get_settings.cache_clear()
 
-    assert resp.status_code == 200, resp.text
+    assert resp.status_code == 503, resp.text
     body = resp.json()
     checks = _checks_by_name(body)
     assert body["status"] == "blocked"
@@ -115,7 +115,7 @@ def test_ready_endpoint_blocks_sqlite_in_production(ctx: Ctx, monkeypatch) -> No
         get_engine.cache_clear()
         get_sessionmaker.cache_clear()
 
-    assert resp.status_code == 200, resp.text
+    assert resp.status_code == 503, resp.text
     body = resp.json()
     checks = _checks_by_name(body)
     assert body["status"] == "blocked"
@@ -168,9 +168,13 @@ def test_ready_endpoint_blocks_unmigrated_schema(
         get_engine.cache_clear()
         get_sessionmaker.cache_clear()
 
-    assert resp.status_code == 200, resp.text
+    assert resp.status_code == 503, resp.text
     body = resp.json()
     checks = _checks_by_name(body)
     assert body["status"] == "blocked"
     assert checks["database_schema"]["status"] == "fail"
-    assert "expected 002_free_open_source_schema" in checks["database_schema"]["detail"]
+    from app.routes.readiness import expected_alembic_revision
+
+    assert (
+        f"expected {expected_alembic_revision()}" in checks["database_schema"]["detail"]
+    )

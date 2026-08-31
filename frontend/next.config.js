@@ -19,6 +19,10 @@ if (
 
 const nextConfig = {
   typedRoutes: true,
+  // Pin the workspace root. Without this, Next infers it from the nearest
+  // lockfile, which can resolve to a directory above the clone.
+  turbopack: { root: __dirname },
+  outputFileTracingRoot: __dirname,
 };
 
 module.exports = nextConfig;

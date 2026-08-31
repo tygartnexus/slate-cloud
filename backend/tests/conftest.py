@@ -42,7 +42,7 @@ def ctx(tmp_path, monkeypatch) -> Ctx:
     # 2. In-memory SQLite shared across connections. Import the models module
     #    BEFORE create_all so every table is registered on Base.metadata.
     from app.db import Base, get_db
-    from app.models import Account  # noqa: F401 - registers tables on Base.metadata
+    from app.models import Account
 
     engine = create_engine(
         database_url,
@@ -50,13 +50,17 @@ def ctx(tmp_path, monkeypatch) -> Ctx:
         poolclass=StaticPool,
     )
     Base.metadata.create_all(engine)
+    # Stamp the real Alembic head rather than a hardcoded revision, so adding a
+    # migration cannot leave the readiness tests asserting a stale value.
+    from app.routes.readiness import expected_alembic_revision
+
     with engine.begin() as conn:
         conn.execute(
             text("CREATE TABLE alembic_version (version_num VARCHAR(32) NOT NULL)")
         )
         conn.execute(
             text("INSERT INTO alembic_version (version_num) VALUES (:revision)"),
-            {"revision": "002_free_open_source_schema"},
+            {"revision": expected_alembic_revision()},
         )
     TestSession = sessionmaker(bind=engine, autoflush=False, future=True)
 

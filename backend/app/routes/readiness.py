@@ -2,15 +2,22 @@
 
 from __future__ import annotations
 
+import logging
+from functools import lru_cache
+from pathlib import Path
 from typing import Literal
 
-from fastapi import APIRouter
-from pydantic import BaseModel
 import sqlalchemy as sa
+from alembic.config import Config
+from alembic.script import ScriptDirectory
+from fastapi import APIRouter, Response, status
+from pydantic import BaseModel
 from sqlalchemy import text
 
 from app.config import Settings, get_settings
 from app.db import get_sessionmaker
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["ops"])
 
@@ -35,12 +42,42 @@ PRODUCTION_REQUIRED_ENV_VARS = (
     "CLERK_JWT_AUDIENCE",
     "CLERK_JWT_AUTHORIZED_PARTIES",
 )
-EXPECTED_ALEMBIC_REVISION = "002_free_open_source_schema"
+
+BACKEND_ROOT = Path(__file__).resolve().parents[2]
 
 
-@router.get("/ready", response_model=ReadinessResponse)
-def readiness() -> ReadinessResponse:
-    """Return deployment readiness without exposing secret values."""
+@lru_cache(maxsize=1)
+def expected_alembic_revision() -> str | None:
+    """Resolve the Alembic head from the shipped migrations directory.
+
+    Read dynamically rather than hardcoded so adding a migration cannot silently
+    leave this gate asserting a stale revision. Returns None when the migrations
+    directory is not shipped alongside the app, which the caller treats as a
+    blocking condition rather than a pass.
+    """
+    script_location = BACKEND_ROOT / "migrations"
+    if not script_location.is_dir():
+        return None
+    try:
+        config = Config()
+        config.set_main_option("script_location", str(script_location))
+        return ScriptDirectory.from_config(config).get_current_head()
+    except Exception:  # readiness must report, never raise
+        logger.exception("failed to resolve alembic head from %s", script_location)
+        return None
+
+
+@router.get(
+    "/ready",
+    response_model=ReadinessResponse,
+    responses={503: {"model": ReadinessResponse}},
+)
+def readiness(response: Response) -> ReadinessResponse:
+    """Return deployment readiness without exposing secret values.
+
+    Blocked readiness is returned as 503 so orchestrator probes, deploy gates,
+    and `curl -f` treat it as a failure instead of a healthy 200.
+    """
     settings = get_settings()
     checks: list[ReadinessCheck] = []
 
@@ -71,9 +108,10 @@ def readiness() -> ReadinessResponse:
     checks.append(_database_connectivity_check(settings))
     checks.append(_database_schema_check(settings))
 
-    overall: OverallStatus = (
-        "ready" if all(check.status == "pass" for check in checks) else "blocked"
-    )
+    blocked = any(check.status == "fail" for check in checks)
+    overall: OverallStatus = "blocked" if blocked else "ready"
+    if blocked:
+        response.status_code = status.HTTP_503_SERVICE_UNAVAILABLE
     return ReadinessResponse(status=overall, checks=checks)
 
 
@@ -107,23 +145,15 @@ def _database_safety_check(settings: Settings) -> ReadinessCheck:
 
 
 def _database_connectivity_check(settings: Settings) -> ReadinessCheck:
-    if not settings.database_url_configured:
-        return ReadinessCheck(
-            name="database",
-            status="fail",
-            detail="database URL missing",
-        )
-    if settings.uses_sqlite_database and not settings.sqlite_database_allowed:
-        return ReadinessCheck(
-            name="database",
-            status="fail",
-            detail="unsafe database URL",
-        )
+    unsafe = _unsafe_database_reason(settings)
+    if unsafe:
+        return ReadinessCheck(name="database", status="fail", detail=unsafe)
     try:
         session_factory = get_sessionmaker()
         with session_factory() as db:
             db.execute(text("SELECT 1"))
-    except Exception:
+    except Exception:  # readiness must report, never raise
+        logger.exception("readiness database connectivity check failed")
         return ReadinessCheck(
             name="database",
             status="fail",
@@ -133,18 +163,18 @@ def _database_connectivity_check(settings: Settings) -> ReadinessCheck:
 
 
 def _database_schema_check(settings: Settings) -> ReadinessCheck:
-    if not settings.database_url_configured:
+    unsafe = _unsafe_database_reason(settings)
+    if unsafe:
+        return ReadinessCheck(name="database_schema", status="fail", detail=unsafe)
+
+    expected_revision = expected_alembic_revision()
+    if expected_revision is None:
         return ReadinessCheck(
             name="database_schema",
             status="fail",
-            detail="database URL missing",
+            detail="alembic migrations directory not found; cannot verify revision",
         )
-    if settings.uses_sqlite_database and not settings.sqlite_database_allowed:
-        return ReadinessCheck(
-            name="database_schema",
-            status="fail",
-            detail="unsafe database URL",
-        )
+
     try:
         session_factory = get_sessionmaker()
         with session_factory() as db:
@@ -160,11 +190,11 @@ def _database_schema_check(settings: Settings) -> ReadinessCheck:
             revision = db.execute(
                 text("SELECT version_num FROM alembic_version")
             ).scalar()
-            if revision != EXPECTED_ALEMBIC_REVISION:
+            if revision != expected_revision:
                 return ReadinessCheck(
                     name="database_schema",
                     status="fail",
-                    detail=f"expected {EXPECTED_ALEMBIC_REVISION}, got {revision or 'none'}",
+                    detail=f"expected {expected_revision}, got {revision or 'none'}",
                 )
             if "verdicts" not in tables:
                 return ReadinessCheck(
@@ -187,7 +217,8 @@ def _database_schema_check(settings: Settings) -> ReadinessCheck:
                     status="fail",
                     detail="legacy verdicts.is_pro column still present",
                 )
-    except Exception:
+    except Exception:  # readiness must report, never raise
+        logger.exception("readiness database schema check failed")
         return ReadinessCheck(
             name="database_schema",
             status="fail",
@@ -196,8 +227,16 @@ def _database_schema_check(settings: Settings) -> ReadinessCheck:
     return ReadinessCheck(
         name="database_schema",
         status="pass",
-        detail=f"schema revision {EXPECTED_ALEMBIC_REVISION}",
+        detail=f"schema revision {expected_revision}",
     )
+
+
+def _unsafe_database_reason(settings: Settings) -> str | None:
+    if not settings.database_url_configured:
+        return "database URL missing"
+    if settings.uses_sqlite_database and not settings.sqlite_database_allowed:
+        return "unsafe database URL"
+    return None
 
 
 def _check(

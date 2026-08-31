@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 
+import { Timestamp } from "@/components/timestamp";
 import {
   formatConfidence,
   modeTitle,
@@ -71,7 +72,7 @@ export function VerdictDetail({ verdict }: { verdict: VerdictDetailData }) {
       <header className="mb-8">
         <div className="font-mono text-2xl text-zinc-100">{verdict.shot_id}</div>
         <div className="text-sm text-zinc-500 mt-1">
-          {new Date(verdict.submitted_at).toLocaleString()}
+          <Timestamp iso={verdict.submitted_at} />
         </div>
         <div className="mt-3 inline-block rounded-md border border-zinc-700 px-3 py-1 text-sm font-medium">
           {verdict.final_status}
@@ -325,7 +326,9 @@ function QualityPanel({
 function normalizeVerdictPayload(payload: Record<string, unknown>): NormalizedVerdictPayload {
   const root = isRecord(payload) ? payload : {};
   const core = normalizeCore(root);
-  const panel = normalizePanel(root.panel) ?? normalizePanel(root["th" + "rawn"]);
+  // The legacy key is still read for backward compatibility with older
+  // verdict JSON. content-check-allow: thrawn-naming
+  const panel = normalizePanel(root.panel) ?? normalizePanel(root.thrawn);
   const reports: QualityReportEntry[] = [];
   const invalidReportSources: string[] = [];
 
