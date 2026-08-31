@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 import json
+import re
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
 from app.ai_response_quality import (
@@ -19,21 +20,61 @@ from app.models import Account, VerdictRecord
 from app.schemas import VerdictDetail, VerdictSummary, VerdictUploadRequest
 
 router = APIRouter(prefix="/verdicts", tags=["verdicts"])
-SENSITIVE_KEY_MARKERS = (
+
+# Whole-segment markers. Matching these as bare substrings redacts ordinary
+# telemetry (token_count, total_tokens), so keys are split into segments before
+# comparison.
+SENSITIVE_KEY_SEGMENTS = frozenset(
+    {
+        "apikey",
+        "authorization",
+        "bearer",
+        "credential",
+        "credentials",
+        "password",
+        "passwd",
+        "secret",
+        "secrets",
+        "token",
+        "tokens",
+    }
+)
+# Substrings that stay unambiguous however the key is segmented.
+SENSITIVE_KEY_PHRASES = (
     "api_key",
-    "apikey",
-    "authorization",
-    "bearer",
-    "credential",
-    "password",
-    "passwd",
+    "access_key",
     "private_key",
-    "secret",
+    "secret_key",
     "session_key",
-    "token",
+)
+# Model-usage metrics that segment-match token/tokens but carry no secret.
+METRIC_KEY_ALLOWLIST = frozenset(
+    {
+        "cached_tokens",
+        "completion_tokens",
+        "input_tokens",
+        "max_tokens",
+        "output_tokens",
+        "prompt_tokens",
+        "reasoning_tokens",
+        "token_count",
+        "token_usage",
+        "tokens_per_second",
+        "tokens_used",
+        "total_tokens",
+    }
 )
 RAW_OUTPUT_KEYS = {"raw_signals", "raw_response", "provider_outputs"}
 REDACTED_VALUE = "[redacted]"
+KEY_SEGMENT_SPLIT = re.compile(r"[^a-z0-9]+")
+
+# Bounds the recursive redaction and validation walks. Deeply nested JSON is
+# malformed for a verdict and would otherwise exhaust the interpreter stack and
+# surface to the caller as a 500.
+MAX_PAYLOAD_DEPTH = 64
+
+DEFAULT_PAGE_SIZE = 50
+MAX_PAGE_SIZE = 200
 
 
 @router.post("", response_model=VerdictDetail, status_code=status.HTTP_201_CREATED)
@@ -48,6 +89,9 @@ def upload_verdict(
     we accept either to be tolerant of the CLI's evolution.
     """
     raw_payload = body.payload or body.model_dump(exclude_none=True)
+    # Depth first: the size check serializes the payload, and the validation and
+    # redaction walks recurse, so all three need a bounded structure.
+    _enforce_payload_depth(raw_payload)
     _enforce_payload_size(raw_payload)
     try:
         validate_verdict_response_quality(raw_payload)
@@ -72,17 +116,12 @@ def upload_verdict(
         or _extract_nested(raw_payload, "status")
         or "UNKNOWN"
     )
-    has_panel_review = (
-        "final_status" in raw_payload
-        or "panel" in raw_payload
-        or "thrawn" in raw_payload
-    )
 
     record = VerdictRecord(
         account_id=account.id,
         shot_id=shot_id,
         final_status=final_status,
-        has_panel_review=has_panel_review,
+        has_panel_review=_detect_panel_review(raw_payload),
         payload=_redact_sensitive_payload(raw_payload),
     )
     db.add(record)
@@ -102,8 +141,8 @@ def upload_verdict(
 def list_verdicts(
     account: Account = Depends(current_account),
     db: Session = Depends(get_db),
-    limit: int = 50,
-    offset: int = 0,
+    limit: int = Query(DEFAULT_PAGE_SIZE, ge=1, le=MAX_PAGE_SIZE),
+    offset: int = Query(0, ge=0),
 ) -> list[VerdictSummary]:
     q = (
         db.query(VerdictRecord)
@@ -150,6 +189,21 @@ def get_verdict(
     )
 
 
+def _detect_panel_review(payload: dict[str, Any]) -> bool:
+    """True only when the payload actually carries a Panel review block.
+
+    final_status is present on virtually every verdict, so treating it as Panel
+    evidence marked every upload as reviewed. Require a non-empty Panel block
+    instead: a run may report a panel summary and response_quality without
+    per-persona detail, and that is still reviewable evidence to surface. The
+    legacy key is accepted for backward compatibility with older verdict JSON.
+    """
+    return any(
+        isinstance(payload.get(key), dict) and payload[key]
+        for key in ("panel", "thrawn")
+    )
+
+
 def _extract_nested(d: dict[str, Any], *keys: str) -> Any | None:
     cur: Any = d
     for k in keys:
@@ -157,6 +211,26 @@ def _extract_nested(d: dict[str, Any], *keys: str) -> Any | None:
             return None
         cur = cur.get(k)
     return cur
+
+
+def _enforce_payload_depth(payload: dict[str, Any]) -> None:
+    """Reject over-nested payloads using an iterative walk.
+
+    Deliberately not recursive: this gate protects the recursive walks that
+    follow, so it cannot rely on the stack itself.
+    """
+    stack: list[tuple[Any, int]] = [(payload, 1)]
+    while stack:
+        node, depth = stack.pop()
+        if depth > MAX_PAYLOAD_DEPTH:
+            raise HTTPException(
+                status_code=422,
+                detail=f"verdict payload nesting exceeds {MAX_PAYLOAD_DEPTH} levels",
+            )
+        if isinstance(node, dict):
+            stack.extend((child, depth + 1) for child in node.values())
+        elif isinstance(node, list):
+            stack.extend((child, depth + 1) for child in node)
 
 
 def _enforce_payload_size(payload: dict[str, Any]) -> None:
@@ -190,7 +264,12 @@ def _redact_sensitive_payload(value: Any) -> Any:
 
 def _is_sensitive_key(key: str) -> bool:
     normalized = key.lower().replace("-", "_")
-    return any(marker in normalized for marker in SENSITIVE_KEY_MARKERS)
+    if normalized in METRIC_KEY_ALLOWLIST:
+        return False
+    if any(phrase in normalized for phrase in SENSITIVE_KEY_PHRASES):
+        return True
+    segments = {segment for segment in KEY_SEGMENT_SPLIT.split(normalized) if segment}
+    return bool(segments & SENSITIVE_KEY_SEGMENTS)
 
 
 def _looks_like_secret(value: str) -> bool:
@@ -219,6 +298,4 @@ def _looks_like_secret(value: str) -> bool:
         return True
     if compact.startswith("AIza") and len(compact) >= 39:
         return True
-    if "-----BEGIN " in compact and " PRIVATE KEY-----" in compact:
-        return True
-    return False
+    return "-----BEGIN " in compact and " PRIVATE KEY-----" in compact
