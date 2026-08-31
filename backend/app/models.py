@@ -31,7 +31,7 @@ class Account(Base):
         DateTime(timezone=True), default=_utcnow
     )
 
-    verdicts: Mapped[list["VerdictRecord"]] = relationship(back_populates="account")
+    verdicts: Mapped[list[VerdictRecord]] = relationship(back_populates="account")
 
 
 class VerdictRecord(Base):
