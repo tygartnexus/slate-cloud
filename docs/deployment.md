@@ -37,9 +37,15 @@ curl https://your-backend.example.com/ready
 
 `/health` only proves the process is running. `/ready` verifies required env
 vars are present, the database URL is safe for the environment, the database
-can answer `SELECT 1`, and the expected Alembic revision/schema shape is present.
-Treat
-`{"status":"blocked"}` as a deploy blocker.
+can answer `SELECT 1`, and the Alembic head this build ships matches the
+revision the database is stamped with.
+
+`/ready` returns **200 when ready and 503 when blocked**, so `curl -f`,
+orchestrator probes, and deploy gates fail on their own. The body still carries
+per-check detail for diagnosis. The expected revision is read from the shipped
+`backend/migrations` directory at runtime, so it tracks new migrations without a
+code change; if that directory is missing from the deployed image, the schema
+check fails closed rather than passing silently.
 
 ## Production env vars (frontend, Vercel)
 
@@ -57,12 +63,24 @@ cd backend
 alembic upgrade head
 ```
 
-Run on every backend deploy. Add to the Fly/Railway deploy hook.
+Run on every backend deploy. Add to the Fly/Railway deploy hook. Ship the
+`backend/migrations` directory with the image — `/ready` reads the expected
+revision from it.
 
 The free-schema migration keeps legacy commercial data for auditability:
 `licenses` is renamed to `legacy_licenses_archive`, and
 `accounts.stripe_customer_id` is copied to `accounts.legacy_stripe_customer_id`
 before the active payment fields are removed from application models and flows.
+
+Because those objects are intentionally unmapped in `app/models.py`, they are
+excluded from autogenerate in `migrations/autogen.py`. Without that exclusion
+`alembic revision --autogenerate` proposes dropping them. `tests/test_schema_drift.py`
+asserts both that they survive and that no other drift exists between the
+migration head and the models; CI runs it against SQLite and PostgreSQL.
+
+Note this archive retains Stripe customer identifiers and signed license tokens
+indefinitely. If your retention policy does not justify keeping them, purge the
+archive as a deliberate, separate migration.
 
 ## Payment endpoints
 

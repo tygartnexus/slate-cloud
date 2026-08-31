@@ -10,7 +10,7 @@ or license activation requirement.
 
 ```
 ┌──────────────────────────────────────────────────────┐
-│ Frontend (Next.js 14 + Tailwind, deployed on Vercel) │
+│ Frontend (Next.js 16 + Tailwind, deployed on Vercel) │
 │  - Clerk auth                                        │
 │  - Verdict list / detail                             │
 │  - Free access status                                │
@@ -50,7 +50,7 @@ database access controls, and incident process.
 
 ```bash
 cp .env.example .env  # set POSTGRES_PASSWORD for local Docker only
-docker compose up -d postgres
+docker compose up -d --wait postgres
 
 cd backend
 python -m venv .venv && . .venv/Scripts/activate   # Windows
@@ -72,8 +72,10 @@ npm run dev   # http://localhost:3000
 ### Quick test (with backend up)
 
 ```bash
-# Confirm deploy dependencies are configured and reachable
-curl http://localhost:8000/ready
+# Confirm deploy dependencies are configured and reachable.
+# 200 when ready, 503 when blocked, so `curl -f` and orchestrator probes
+# fail correctly.
+curl -f http://localhost:8000/ready
 
 # Upload a verdict
 curl -X POST http://localhost:8000/verdicts \
@@ -81,6 +83,30 @@ curl -X POST http://localhost:8000/verdicts \
   -H "Content-Type: application/json" \
   -d @verdict.json
 ```
+
+### Upload requirements
+
+`POST /verdicts` enforces these limits, each with its own status:
+
+| Condition | Response |
+|---|---|
+| No `response_quality` object anywhere in the payload | `422` |
+| A `response_quality` object that fails the contract | `422` with an `issues` list |
+| Nesting deeper than 64 levels | `422` |
+| Payload over `VERDICT_MAX_PAYLOAD_BYTES` (512 KB default) | `413` |
+
+The `response_quality` requirement is a hard gate: a verdict without one is
+rejected. See
+[docs/ai-response-quality-framework.md](docs/ai-response-quality-framework.md)
+for the contract, and
+[backend/tests/fixtures/current_slate_verdict.json](backend/tests/fixtures/current_slate_verdict.json)
+for a payload that satisfies it.
+
+Keys that look like credentials (`api_key`, `access_token`, `authorization`, ...)
+become `[redacted]` before the payload is stored. Model-usage metrics such as
+`total_tokens` and `token_count` are preserved.
+
+`GET /verdicts` accepts `limit` (1-200, default 50) and `offset` (>= 0).
 
 ## Deploy
 
@@ -91,6 +117,16 @@ See [docs/deployment.md](docs/deployment.md) for the production deploy.
 All Slate Cloud dashboard functionality is free. The legacy `/billing/*`,
 `/webhooks/stripe`, and `/account/license` routes return disabled compatibility
 responses so stale clients cannot accidentally start a paid flow.
+
+## Checks
+
+`scripts/verify_local.sh` runs the same gates CI runs (format, lint, types,
+migrations, tests, audit, content check, build, e2e):
+
+```bash
+bash scripts/verify_local.sh          # everything
+SKIP_E2E=1 bash scripts/verify_local.sh   # skip the slow Playwright pass
+```
 
 ## License
 

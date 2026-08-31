@@ -1,5 +1,4 @@
-version: "3.9"
-
+# Compose v2 infers the schema; the top-level `version` key is obsolete.
 services:
   postgres:
     image: postgres:16-alpine
@@ -11,3 +10,11 @@ services:
       - "127.0.0.1:5432:5432"
     volumes:
       - ./postgres-data:/var/lib/postgresql/data
+    # Lets `docker compose up -d --wait postgres` block until the server can
+    # actually accept connections, instead of racing `alembic upgrade head`.
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U slate -d slate_cloud"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
