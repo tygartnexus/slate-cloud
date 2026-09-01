@@ -50,12 +50,19 @@ Branch protection is enabled on `main` for all three repos.
 
 ### Local release gate
 
-Command:
+Command, as run on 2026-06-19:
 
 ```powershell
 $env:Path = "<SlateCloud checkout>\.venv\Scripts;$env:Path"
 pwsh .\scripts\verify_local_release.ps1
 ```
+
+> **Note (2026-08-31):** `scripts/verify_local_release.ps1` was removed in
+> [#5](https://github.com/tygartnexus/slate-cloud/pull/5); it required private
+> sibling `../Slate` and `../SlatePro` checkouts. The command above is recorded
+> as it was actually run and is left unchanged for that reason. The current
+> repo-local equivalent is `bash scripts/verify_local.sh`, which covers the
+> SlateCloud gates only.
 
 Result:
 
