@@ -41,7 +41,10 @@ or license activation requirement.
 | `POST /verdicts` | Clerk JWT | Persist a verdict. `201` on success; see [Upload requirements](#upload-requirements) |
 | `GET /verdicts` | Clerk JWT | Caller's verdicts, newest first. `limit` 1–200 (default 50), `offset` ≥ 0 |
 | `GET /verdicts/{id}` | Clerk JWT | Detail for one verdict the caller owns; `404` otherwise |
+| `DELETE /verdicts/{id}` | Clerk JWT | Delete one of your own verdicts. `204`; `404` if it is not yours |
 | `GET /account` | Clerk JWT | Account id, email, and true `verdict_count` |
+| `GET /account/export` | Clerk JWT | Stream everything this account holds as NDJSON |
+| `DELETE /account` | Clerk JWT | Erase this account and its verdicts. Requires `?confirm=<your account id>` |
 | `GET /health` | none | Liveness only — proves the process is up, nothing more |
 | `GET /ready` | none | Readiness. `200` when ready, **`503` when blocked** |
 | `POST /billing/checkout`, `POST /billing/portal` | none | `410` — payments disabled |
@@ -182,6 +185,60 @@ describe the same schema. Objects kept for auditability but intentionally
 unmapped are excluded in `migrations/autogen.py` — without that,
 `alembic revision --autogenerate` proposes dropping them.
 
+## Deletion and export
+
+Both are self-service, authenticated, and scoped to the caller. Neither can
+reach another account.
+
+### Export
+
+```bash
+curl -f -H "Authorization: Bearer $CLERK_JWT"   http://localhost:8000/account/export -o export.ndjson
+```
+
+Newline-delimited JSON, streamed. The first line is a metadata header carrying
+`verdict_count`; every following line is one verdict including its full stored
+payload. NDJSON rather than one JSON document because verdict payloads are
+capped individually but not in aggregate, so a single document would have to be
+either bounded (silently incomplete) or fully buffered (unbounded memory).
+
+**Check the export is complete** by comparing `verdict_count` against the number
+of `type: "verdict"` lines. A stream cut short is then detectable rather than
+silently short:
+
+```bash
+head -1 export.ndjson | python -c "import json,sys; print(json.load(sys.stdin)['verdict_count'])"
+grep -c '"type": "verdict"' export.ndjson
+```
+
+### Deletion
+
+```bash
+# Get your account id first - deletion will not proceed without it.
+curl -f -H "Authorization: Bearer $CLERK_JWT" http://localhost:8000/account
+
+curl -f -X DELETE -H "Authorization: Bearer $CLERK_JWT"   "http://localhost:8000/account?confirm=<your account id>"
+```
+
+`confirm` must equal your own account id. A missing `confirm` is `422`, a wrong
+one is `400`, and neither erases anything. The whole deletion runs in one
+transaction, so an account is either fully erased or untouched.
+
+What deletion does:
+
+| Data | Outcome |
+|---|---|
+| `accounts` row (id, email, created_at, legacy Stripe customer id) | deleted |
+| That account's `verdicts` rows, payloads included | deleted |
+| `legacy_licenses_archive` rows | **kept, stripped** — signed token overwritten with `[erased]`, `stripe_subscription_id` nulled, `account_id` unlinked. `license_id`, `tier`, `seats`, and dates remain |
+| Clerk user | **untouched** |
+
+The archive is kept-but-stripped rather than dropped so the fact a license
+existed stays auditable while the data identifying a person does not.
+
+Because the Clerk user survives, signing in again creates a fresh, empty account
+with a **new** id. Deletion erases your data; it does not close your login.
+
 ## Deploy
 
 See [docs/deployment.md](docs/deployment.md) for the production deploy.
@@ -197,9 +254,8 @@ responses so stale clients cannot accidentally start a paid flow.
 Stated plainly so the docs do not imply capability that does not exist:
 
 - **No upload UI.** Verdicts reach the API by `POST /verdicts` only.
-- **No delete or export endpoints.** [docs/privacy-and-security.md](docs/privacy-and-security.md)
-  tells operators to offer account deletion and data export; the API has neither,
-  so an operator must service those requests directly against the database.
+- **No delete or export UI.** The endpoints exist (see below), but the
+  dashboard does not call them yet — they are API-only today.
 - **No rate limiting** on any endpoint.
 - **No verdict comparison or history diffing.**
 

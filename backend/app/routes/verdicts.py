@@ -189,6 +189,32 @@ def get_verdict(
     )
 
 
+@router.delete("/{verdict_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_verdict(
+    verdict_id: str,
+    account: Account = Depends(current_account),
+    db: Session = Depends(get_db),
+) -> None:
+    """Delete one of the caller's own verdicts.
+
+    Scoped by account_id as well as id, so a verdict belonging to someone else
+    is a 404 rather than a 403 -- the caller learns nothing about whether the id
+    exists.
+    """
+    deleted = (
+        db.query(VerdictRecord)
+        .filter(
+            VerdictRecord.id == verdict_id,
+            VerdictRecord.account_id == account.id,
+        )
+        .delete(synchronize_session=False)
+    )
+    if not deleted:
+        db.rollback()
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "verdict not found")
+    db.commit()
+
+
 def _detect_panel_review(payload: dict[str, Any]) -> bool:
     """True only when the payload actually carries a Panel review block.
 
