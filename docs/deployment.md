@@ -78,8 +78,13 @@ excluded from autogenerate in `migrations/autogen.py`. Without that exclusion
 asserts both that they survive and that no other drift exists between the
 migration head and the models; CI runs it against SQLite and PostgreSQL.
 
-Note this archive retains Stripe customer identifiers and signed license tokens
-indefinitely. If your retention policy does not justify keeping them, purge the
+Account deletion (`DELETE /account`) strips those archive rows rather than
+dropping them: the signed token is overwritten, the Stripe subscription id is
+nulled, and `account_id` is unlinked, which is why migration 004 makes that
+column nullable. See docs/privacy-and-security.md.
+
+For accounts that have *not* been deleted, note the archive retains Stripe
+customer identifiers and signed license tokens indefinitely. If your retention policy does not justify keeping them, purge the
 archive as a deliberate, separate migration.
 
 ## Payment endpoints

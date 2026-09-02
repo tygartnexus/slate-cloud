@@ -34,3 +34,17 @@ class AccountInfo(BaseModel):
     id: str
     email: str
     verdict_count: int
+
+
+class AccountDeletionReceipt(BaseModel):
+    """What an account deletion actually erased.
+
+    Returned instead of a bare 204 so the caller has a record of the scope of an
+    irreversible action.
+    """
+
+    status: str
+    account_id: str
+    verdicts_deleted: int
+    legacy_licenses_anonymised: int
+    detail: str
